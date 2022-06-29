@@ -8,7 +8,7 @@ class Evolution:
     def __init__(self):
         self.game_mode = "Neuroevolution"
 
-    def next_population_selection(self, players, num_players, policy='top-k', save_learning_info=False):
+    def next_population_selection(self, players, num_players, policy='top_k', save_learning_info=False):
         """
         Gets list of previous and current players (μ + λ) and returns num_players number of players based on their
         fitness value.
@@ -18,28 +18,8 @@ class Evolution:
         :param policy: policy for selection of players
         :param save_learning_info: plot learning curve of the players
         """
-        next_players = []
-        if policy == 'top-k':
-            players = sorted(players, key=lambda x: x.fitness, reverse=True)
-            next_players = players[:num_players]
-        elif policy == 'roulette':
-            total_fitness = sum([player.fitness for player in players])
-            for _ in range(num_players):
-                r = random.random() * total_fitness
-                for player in players:
-                    r -= player.fitness
-                    if r <= 0:
-                        next_players.append(player)
-                        break
-            pass
-        elif policy == 'tournament':
-            for _ in range(num_players):
-                players = random.sample(players, 2)
-                if players[0].fitness > players[1].fitness:
-                    next_players.append(players[0])
-                else:
-                    next_players.append(players[1])
-            pass
+        policy_func = getattr(self, policy + '_selection')
+        next_players = policy_func(players, num_players)
 
         if save_learning_info:
             # write learning info to a file
@@ -51,7 +31,7 @@ class Evolution:
                 f.write(f'{best_fit},{worst_fit},{average_fit}\n')
         return next_players
 
-    def generate_new_population(self, num_players, prev_players=None):
+    def generate_new_population(self, num_players, prev_players=None, policy='random'):
         """
         Gets survivors and returns a list containing num_players number of children.
 
@@ -63,16 +43,9 @@ class Evolution:
         if first_generation:
             return [Player(self.game_mode) for _ in range(num_players)]
         else:
-            parents = prev_players
-            children = []
-            for _ in range(num_players):
-                p1 = random.choice(parents)
-                p2 = random.choice(parents)
-                child = self.cross_over(p1, p2)
-                if random.random() < 0.2:
-                    child = self.mutate(child)
-                children.append(child)
-            return children
+            policy_func = getattr(self, policy + '_selection')
+            children = [self.cross_over(policy_func(prev_players, 1)[0], policy_func(prev_players, 1)[0]) for _ in range(num_players)]
+            return [self.mutate(x) if random.random() < 0.2 else x for x in children]
 
     def clone_player(self, player):
         """
@@ -89,9 +62,7 @@ class Evolution:
         """
         best_p = p1 if p1.fitness > p2.fitness else p2
         worst_p = p1 if best_p == p2 else p2
-
         child = self.clone_player(best_p)
-
         for layer in child.nn.weights.keys():
             if layer % 2 == 0:
                 child.nn.weights[layer] += worst_p.nn.weights[layer]
@@ -110,3 +81,42 @@ class Evolution:
             player.nn.weights[layer] += np.random.normal(0, 0.1, player.nn.weights[layer].shape)
             player.nn.biases[layer] += np.random.normal(0, 0.1, player.nn.biases[layer].shape)
         return player
+
+    def random_selection(self, players, num_players):
+        """
+        Gets list of players and returns num_players number of players based on random policy.
+        """
+        return [random.choice(players) for _ in range(num_players)]
+
+    def top_k_selection(self, players, num_players):
+        """
+        Gets list of players and returns num_players number of players based on their fitness value.
+        """
+        players = sorted(players, key=lambda x: x.fitness, reverse=True)
+        return players[:num_players]
+
+    def roulette_selection(self, players, num_players):
+        """
+        Gets list of players and returns num_players number of players based on roulette wheel policy.
+        """
+        next_players = []
+        total_fitness = sum([player.fitness for player in players])
+        for _ in range(num_players):
+            r = random.random() * total_fitness
+            for player in players:
+                r -= player.fitness
+                if r <= 0:
+                    next_players.append(player)
+                    break
+        return next_players
+
+    def tournament_selection(self, players, num_players, Q=2):
+        """
+        Gets list of players and returns num_players number of players based on tournament policy.
+        """
+        next_players = []
+        for _ in range(num_players):
+            players_in_tournament = random.sample(players, Q)
+            best_player = max(players_in_tournament, key=lambda x: x.fitness)
+            next_players.append(best_player)
+        return next_players
