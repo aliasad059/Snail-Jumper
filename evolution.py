@@ -40,8 +40,6 @@ class Evolution:
                 else:
                     next_players.append(players[1])
             pass
-        elif policy == 'sus':
-            pass
 
         if save_learning_info:
             # write learning info to a file
@@ -53,7 +51,7 @@ class Evolution:
                 f.write(f'{best_fit},{worst_fit},{average_fit}\n')
         return next_players
 
-    def generate_new_population(self, num_players, prev_players=None, policy='top-k'):
+    def generate_new_population(self, num_players, prev_players=None):
         """
         Gets survivors and returns a list containing num_players number of children.
 
@@ -89,12 +87,19 @@ class Evolution:
         """
         Gets two players as an input and produces a child by crossing over the weights and biases of the two players.
         """
-        child = self.clone_player(p1)
-        for layer in p1.nn.weights.keys():
+        best_p = p1 if p1.fitness > p2.fitness else p2
+        worst_p = p1 if best_p == p2 else p2
+
+        child = self.clone_player(best_p)
+
+        for layer in child.nn.weights.keys():
             if layer % 2 == 0:
-                child.nn.weights[layer] = p2.nn.weights[layer]
-                child.nn.biases[layer] = p2.nn.biases[layer]
-        child.fitness = (child.fitness + p2.fitness) / 2
+                child.nn.weights[layer] += worst_p.nn.weights[layer]
+                child.nn.biases[layer] += worst_p.nn.biases[layer]
+                child.nn.weights[layer] /= 2.
+                child.nn.biases[layer] /= 2.
+
+        child.fitness = (worst_p.fitness + best_p.fitness) / 2.  # An estimation of child fitness
         return child
 
     def mutate(self, player):
