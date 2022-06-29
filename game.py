@@ -235,7 +235,7 @@ if __name__ == '__main__':
                 if game_mode == "Manual":
                     game_active = False
                 else:
-                    prev_players = evolution.next_population_selection(prev_players + current_players, num_players)
+                    prev_players = evolution.next_population_selection(prev_players + current_players, num_players, policy='roulette', save_learning_info=True)
                     current_players = evolution.generate_new_population(num_players, prev_players)
                     reset_timer_and_seed()
                     create_players(game_mode, player_list=prev_players + current_players)
